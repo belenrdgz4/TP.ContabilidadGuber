@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#22302A">
+<title>Debate Grupo 7 · La notificación defectuosa</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Un solo look claro a propósito: los proyectores lavan los fondos oscuros.
+   Sin hash (…/)       = pizarrón para proyectar (fase, cronómetro, argumentos, QR y votos en vivo).
+   Con #votar (…/#votar) = pantalla del celular para votar (es la dirección que lleva el QR). */
+:root {
+  color-scheme: light;
+  --bg: #F3F4F1;
+  --card: #FFFFFF;
+  --line: #D9DDD6;
+  --ink: #1D2420;
+  --muted: #5E6862;
+  --a: #1F7A68;
+  --a-soft: #DDF0EA;
+  --b: #6A4FB0;
+  --b-soft: #ECE6F8;
+  --warn: #D9861A;
+  --over: #C23B3B;
+  --dark: #22302A;
+  --display: "Archivo", "Arial Narrow", Arial, sans-serif;
+  --body: "Atkinson Hyperlegible", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { min-height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.45; }
+button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 14px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button:focus-visible { outline: 3px solid var(--warn); outline-offset: 2px; }
+.tagA { background: var(--a-soft); color: var(--a); }
+.tagB { background: var(--b-soft); color: var(--b); }
+.tagN { background: #E9ECE7; color: var(--muted); }
+.chip { display: inline-block; font-weight: 700; font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; }
+.net { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; font-weight: 700; color: var(--muted); }
+.net::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.net.ok::before { background: var(--a); }
+.net.wait::before { background: var(--warn); }
+.net.bad { color: var(--over); }
+.net.bad::before { background: var(--over); }
+
+/* ---------- PIZARRÓN ---------- */
+#pizarra { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; gap: 14px; padding-inline: 24px; padding-block: 18px; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.top h1 { font-family: var(--display); font-weight: 800; font-size: clamp(1rem, 1.6vw, 1.4rem); margin: 0; color: var(--muted); }
+.top .right { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; }
+.steps i { width: 26px; height: 8px; border-radius: 4px; background: var(--line); }
+.steps i.done { background: var(--muted); }
+.steps i.on { background: var(--ink); }
+.main { display: grid; grid-template-columns: 1fr; min-height: 0; }
+
+.stage-box { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px 26px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); grid-template-rows: auto auto 1fr; column-gap: 32px; row-gap: 12px; min-width: 0; }
+.stage-box #pTag, .stage-box .stage-title { grid-column: 1 / -1; }
+.stage-title { font-family: var(--display); font-weight: 900; font-size: clamp(1.8rem, 3.6vw, 3.3rem); line-height: 1.05; margin: 0; text-wrap: balance; padding-right: clamp(150px, 20vw, 290px); }
+.ill { position: absolute; right: 26px; top: 18px; width: clamp(150px, 19vw, 270px); pointer-events: none; }
+.ill svg { width: 100%; height: auto; display: block; }
+.timer { align-self: center; font-family: var(--display); font-weight: 900; font-variant-numeric: tabular-nums; font-size: clamp(4rem, 11.5vw, 12rem); line-height: 1; letter-spacing: -0.02em; }
+.timer.warn { color: var(--warn); }
+.timer.over { color: var(--over); }
+.timer .lbl { display: block; font-family: var(--body); font-weight: 700; font-size: .9rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-content: start; align-self: center; }
+.arg { border-radius: 12px; padding: 12px 14px; font-size: clamp(1rem, 1.4vw, 1.3rem); min-width: 0; }
+.arg b { display: block; font-size: .78em; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 2px; }
+
+/* sin cronómetro: la ilustración ocupa el lugar del reloj */
+.stage-box.notimer .stage-title { padding-right: 0; }
+.stage-box.notimer .ill { position: static; grid-column: 1; grid-row: 3; width: min(100%, 420px); align-self: center; justify-self: center; }
+.stage-box.notimer .timer { display: none; }
+/* moción: texto a pantalla completa y la ilustración chica arriba a la derecha */
+.stage-box.reading .stage-title { padding-right: clamp(120px, 13vw, 190px); }
+.stage-box.reading .ill { position: absolute; grid-column: auto; grid-row: auto; width: clamp(110px, 12vw, 170px); opacity: .9; }
+.stage-box.reading .cards { grid-column: 1 / -1; grid-row: 3; display: block; }
+.mocion { border-left: 6px solid var(--a); padding: 4px 0 4px clamp(16px, 2vw, 28px); max-width: 1180px; }
+.mocion p { margin: 0 0 .7em; line-height: 1.38; color: var(--dark); }
+.mocion .m1 { font-weight: 800; font-size: clamp(1.15rem, 2vw, 1.75rem); }
+.mocion .m2 { font-size: clamp(1.05rem, 1.75vw, 1.5rem); }
+.mocion .m3 { font-size: clamp(1.1rem, 1.9vw, 1.65rem); font-style: italic; background: var(--a-soft); border-radius: 10px; padding: .55em .8em; margin-bottom: 0; }
+
+/* votación: QR + resultados en vivo */
+.stage-box.voting { grid-template-columns: 1fr; }
+.stage-box.voting .ill, .stage-box.voting .timer, .stage-box.voting .cards { display: none; }
+.stage-box.voting .stage-title { padding-right: 0; }
+.votepanel { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: clamp(20px, 3vw, 48px); align-items: start; }
+.qrcol { display: grid; gap: 8px; justify-items: center; text-align: center; max-width: min(42vw, 400px); }
+.qrwrap { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 10px; }
+#qrCanvas { display: block; width: clamp(190px, 34vh, 360px); height: auto; aspect-ratio: 1; image-rendering: pixelated; }
+.qrcol .big { margin: 6px 0 0; font-family: var(--display); font-weight: 900; font-size: clamp(1.4rem, 2.4vw, 2.2rem); line-height: 1.05; }
+.qrcol .small { margin: 0; color: var(--muted); font-size: .9rem; word-break: break-all; }
+.qrcol .warnurl { margin: 0; color: var(--over); font-weight: 700; font-size: .9rem; }
+.resultcol { display: grid; gap: 14px; min-width: 0; }
+.statusrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.live { color: var(--muted); font-size: 1rem; font-weight: 700; }
+.qblock { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; display: grid; gap: 10px; }
+.qblock h3 { margin: 0; font-family: var(--display); font-weight: 800; font-size: clamp(1.05rem, 1.7vw, 1.55rem); text-wrap: balance; }
+.lead { font-family: var(--display); font-weight: 900; font-size: clamp(1.1rem, 2vw, 1.8rem); color: var(--dark); }
+.bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 12px; align-items: center; }
+.bar-row .name { font-weight: 700; font-size: clamp(.95rem, 1.3vw, 1.2rem); }
+.bar-row .n { font-family: var(--display); font-weight: 800; font-variant-numeric: tabular-nums; font-size: clamp(1.2rem, 1.9vw, 1.7rem); }
+.bar-row .pct { font-family: var(--display); font-weight: 800; font-variant-numeric: tabular-nums; color: var(--muted); min-width: 3.2em; text-align: right; }
+.bar { grid-column: 1 / -1; height: 18px; border-radius: 9px; background: #E4E8E2; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 9px; transition: width .5s; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.controls .grp { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.controls .primary { background: var(--dark); color: #fff; border-color: var(--dark); font-weight: 700; }
+.controls .danger { color: var(--over); border-color: #E7C2C2; }
+.kbd { color: var(--muted); font-size: .85rem; }
+@media (max-width: 900px) {
+  .stage-box { grid-template-columns: 1fr; }
+  .cards { grid-template-columns: 1fr; }
+  .ill, .stage-box.reading .ill { position: static; width: 180px; }
+  .stage-title, .stage-box.reading .stage-title { padding-right: 0; }
+  .votepanel { grid-template-columns: 1fr; }
+  .qrcol { max-width: none; }
+}
+
+
+/* proyectores bajos (720p/768p): compactar la pantalla de votación */
+@media (max-height: 800px) and (min-width: 901px) {
+  #pizarra { padding-block: 12px; gap: 10px; }
+  .stage-box { padding: 16px 22px; row-gap: 8px; }
+  .stage-box.voting .stage-title { font-size: clamp(1.5rem, 2.6vw, 2.2rem); }
+  #qrCanvas { width: clamp(150px, 27vh, 230px); }
+  .qrcol .big { font-size: 1.35rem; margin-top: 2px; }
+  .qrcol .small { font-size: .8rem; }
+  .qrwrap { padding: 6px; }
+  .resultcol { gap: 8px; }
+  .qblock { padding: 8px 14px; gap: 5px; }
+  .qblock h3 { font-size: 1.05rem; }
+  .lead { font-size: 1.15rem; }
+  .bar-row { gap: 2px 10px; }
+  .bar-row .name { font-size: .95rem; }
+  .bar-row .n { font-size: 1.15rem; }
+  .bar { height: 12px; }
+}
+
+/* ---------- CELULAR ---------- */
+#phBody { display: grid; gap: 14px; }
+#celular { max-width: 520px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 40px; display: grid; gap: 14px; }
+.ph-head { background: var(--dark); color: #fff; border-radius: 16px; padding: 16px; display: grid; gap: 4px; }
+.ph-head .phase { font-family: var(--display); font-weight: 800; font-size: 1.35rem; line-height: 1.15; }
+.ph-head .note { font-size: .85rem; opacity: .85; }
+.ph-head .net { color: #fff; }
+.ph-head .net.bad { color: #FF9C9C; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+.card h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 1.15rem; text-wrap: balance; }
+.opt { text-align: left; padding: 14px; font-size: 1.02rem; border-width: 2px; }
+.opt.sel { border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink) inset; font-weight: 700; }
+.opt.A.sel { border-color: var(--a); box-shadow: 0 0 0 2px var(--a) inset; background: var(--a-soft); }
+.opt.B.sel { border-color: var(--b); box-shadow: 0 0 0 2px var(--b) inset; background: var(--b-soft); }
+.ok { color: var(--a); font-weight: 700; font-size: .92rem; margin: 0; }
+.muted { color: var(--muted); font-size: .92rem; margin: 0; }
+
+/* aviso */
+#toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--dark); color: #fff; padding: 10px 16px; border-radius: 10px; font-weight: 700; max-width: min(92vw, 560px); z-index: 10; }
+</style>
+</head>
+<body>
+
+<!-- ========== PIZARRÓN ========== -->
+<div id="pizarra" hidden>
+  <div class="top">
+    <h1>Grupo 7 · La notificación defectuosa</h1>
+    <div class="right">
+      <span class="net wait" id="netChip">Conectando…</span>
+      <div class="steps" id="steps" aria-hidden="true"></div>
+    </div>
+  </div>
+  <div class="main">
+    <section class="stage-box" id="stageBox">
+      <div id="pTag"></div>
+      <h2 class="stage-title" id="pTitle"></h2>
+      <div class="ill" id="pIll"></div>
+      <div class="timer" id="pTimer"><span id="tTxt"></span><span class="lbl" id="tLbl"></span></div>
+      <div class="cards" id="pCards"></div>
+      <div class="votepanel" id="pVote" hidden>
+        <div class="qrcol">
+          <div class="qrwrap"><canvas id="qrCanvas" role="img" aria-label="Código QR para votar desde el celular"></canvas></div>
+          <p class="big">Escaneá y votá</p>
+          <p class="small" id="qrUrl"></p>
+          <p class="warnurl" id="qrWarn" hidden>Abrí esta página desde su dirección https:// (GitHub Pages) para que el QR funcione en los celulares.</p>
+          <p class="small">Sin mail ni registro · un voto por celular</p>
+        </div>
+        <div class="resultcol">
+          <div class="statusrow"><span class="chip tagA" id="voteState"></span><span class="live" id="voteCount"></span></div>
+          <div id="qHolder" style="display:grid;gap:14px"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="controls">
+    <div class="grp">
+      <button id="bPrev">◀ Anterior</button>
+      <button id="bPlay" class="primary">▶ Iniciar cronómetro</button>
+      <button id="bReset">↺ Reiniciar tiempo</button>
+      <button id="bNext" class="primary">Siguiente ▶</button>
+    </div>
+    <div class="grp" id="voteCtl" hidden>
+      <button id="bOpen">Cerrar votación</button>
+      <button id="bClear" class="danger">Borrar votos</button>
+    </div>
+    <div class="grp">
+      <span class="kbd">Teclado: ← → fases · espacio cronómetro</span>
+      <button id="bFull">Pantalla completa</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== CELULAR ========== -->
+<div id="celular" hidden>
+  <div class="ph-head">
+    <div class="note">Debate · Grupo 7</div>
+    <div class="phase">La notificación defectuosa</div>
+    <div class="note"><span class="net wait" id="phNet">Conectando…</span></div>
+  </div>
+  <div id="phBody"></div>
+</div>
+
+<div id="toast" hidden></div>
+<noscript><p style="padding:20px">Esta página necesita JavaScript.</p></noscript>
+
+<script type="module">
+/* ================================================================
+   ÚNICA CONFIGURACIÓN: la dirección de tu Realtime Database
+   (Firebase → Compilación → Realtime Database → pestaña "Datos":
+   la URL aparece arriba, termina en .firebaseio.com o .firebasedatabase.app)
+   ================================================================ */
+const FIREBASE_URL = "https://lista-regalos-41b76-default-rtdb.firebaseio.com";
+const ROOT = "debate-g7";                                   // carpeta de esta votación dentro de la base
+const SDK  = "https://www.gstatic.com/firebasejs/10.12.2/"; // Firebase desde gstatic (única dependencia externa)
+
+/* Texto de la moción final (3 párrafos). Reemplazá por el texto oficial del grupo. */
+const MOCION = [
+  "Proponemos, de común acuerdo, suspender el cobro de la multa mediante resolución fundada (art. 12 LPA) y notificar de nuevo a la persona, con constancia de recepción y aviso de los recursos que puede interponer (arts. 40, 41 y 43 del Dto. 1.759/72).",
+  "Desde esa notificación válida corren los plazos completos: vista de 10 días, 20 días para la reconsideración y 30 para el recurso jerárquico. Si no recurre, la multa queda firme y se cobra completa.",
+  "No se anula el acto ni se perdona la multa: se garantiza que la persona pueda defenderse antes de pagar, y el Estado conserva el recurso, solo lo posterga unas semanas."
+];
+
+/* Preguntas de la votación. Las reglas de Firebase aceptan q1 = A | B  y  q2 = si | no. */
+const QUESTIONS = [
+  { id: "q1", text: "¿De qué lado estás?", lead: true, opts: [
+    { k: "A", label: "Panel A · Defensa del ciudadano", short: "A · Defensa del ciudadano", color: "var(--a)", cls: "A" },
+    { k: "B", label: "Panel B · Defensa de la Administración", short: "B · Defensa de la Administración", color: "var(--b)", cls: "B" } ] },
+  { id: "q2", text: "¿La propuesta equilibra legalidad, protección del ciudadano y presupuesto?", lead: false, opts: [
+    { k: "si", label: "Sí", short: "Sí", color: "var(--dark)", cls: "" },
+    { k: "no", label: "No", short: "No", color: "var(--warn)", cls: "" } ] }
+];
+
+const STAGES = [
+  { title: "El caso", tag: ["N", "Antes de empezar"], min: 0, ill: "caso", cards: [
+    ["N", "El hecho", "La Administración pone una multa grave y manda la notificación a un domicilio viejo."],
+    ["N", "El conflicto", "La persona no se entera, vencen los plazos para recurrir, la multa queda firme y empieza el cobro judicial."],
+    ["N", "Lo que se discute", "¿Vale esa notificación? ¿Se puede cobrar la multa?"] ] },
+  { title: "Fase 1 · Defensa del ciudadano", tag: ["A", "Panel A · exposición"], min: 5, ill: "ciudadano", cards: [
+    ["A", "Art. 11 LPA", "El acto vale para la persona recién cuando se la notifica."],
+    ["A", "Arts. 40, 41 y 44 Dto. 1.759/72", "Sin constancia de recepción, ni aviso de los recursos, la notificación no vale."],
+    ["A", "Art. 1° bis inc. a y g", "Derecho a ser oído. Los plazos corren desde una notificación válida."],
+    ["A", "Art. 12 LPA", "Se puede suspender el cobro por resolución fundada."] ] },
+  { title: "Fase 1 · Defensa de la Administración", tag: ["B", "Panel B · exposición"], min: 5, ill: "admin", cards: [
+    ["B", "Art. 12 LPA", "El acto se presume legítimo: quien lo discute debe probar."],
+    ["B", "Arts. 21 y 22 Dto. 1.759/72", "El ciudadano debe avisar si cambia de domicilio."],
+    ["B", "Art. 1° bis inc. g y j", "Los plazos obligan a todos: el derecho no ejercido a tiempo se pierde."],
+    ["B", "Ley 24.156", "La multa es un recurso previsto en el presupuesto: frenarla descuadra la caja."] ] },
+  { title: "Fase 2 · Réplica del ciudadano", tag: ["A", "Panel A · réplica"], min: 3, ill: "ciudadano", cards: [
+    ["A", "Art. 12 vs. art. 11", "Que el acto esté bien hecho no significa que le haya llegado a la persona."],
+    ["A", "Art. 22", "Primero hay que intimar a corregir el domicilio, recién después notificar en el viejo."],
+    ["A", "Art. 6 inc. d Dto. 1.759/72", "Solo se ejecutan multas firmes. Sin notificación válida, no está firme."],
+    ["A", "Pregunta a B", "¿Puede el Estado ejecutar una multa “firme” sin probar que la notificación llegó?"] ] },
+  { title: "Fase 2 · Réplica de la Administración", tag: ["B", "Panel B · réplica"], min: 3, ill: "admin", cards: [
+    ["B", "Constancia de recepción", "Se notificó al domicilio que figuraba, por un medio con constancia (art. 41)."],
+    ["B", "Bases estatales", "La ley dice que el Estado “puede” consultarlas, no que debe."],
+    ["B", "Suspensión", "Es excepcional y exige resolución fundada (art. 12)."],
+    ["B", "Pregunta a A", "¿Dónde y cuándo avisó la persona su cambio de domicilio?"] ] },
+  { title: "Fase 3 · Negociación y propuesta", tag: ["N", "Los dos paneles"], min: 4, ill: "balanza", cards: [
+    ["N", "Paso 1", "Se suspende el cobro por resolución fundada (art. 12)."],
+    ["N", "Paso 2", "Se notifica de nuevo, con constancia de recepción (arts. 40, 41 y 43)."],
+    ["N", "Paso 3", "Vista de 10 días y plazos completos: 20 días reconsideración, 30 jerárquico."],
+    ["N", "Paso 4", "Si no recurre, la multa queda firme y se cobra completa."] ] },
+  { title: "Moción final conjunta", tag: ["N", "Un vocero, o los dos a coro"], min: 0, ill: "mocion", read: true, cards: [] },
+  { title: "Fase 4 · Preguntas y votación", tag: ["N", "Ahora vota la sala"], min: 5, ill: "urna", cards: [
+    ["N", "La propuesta", "Nueva notificación válida, cobro suspendido mientras tanto y plazos completos. No se anula el acto ni se perdona la multa."],
+    ["N", "Jurídicamente", "Respeta lo que dice la ley sobre notificaciones y plazos."],
+    ["N", "Financieramente", "El Estado no pierde el recurso: solo lo posterga unas semanas."] ] },
+  { title: "Votación y cierre", tag: ["N", "Cierre"], min: 0, ill: "urna", voting: true, cards: [] }
+];
+
+/* ---------- Ilustraciones (SVG propios, misma paleta del tablero) ---------- */
+const INK = "#22302A", A = "#1F7A68", AS = "#DDF0EA", B = "#6A4FB0", BS = "#ECE6F8", N = "#E9ECE7", W = "#FFFFFF", O = "#D9861A";
+const ILL = {
+  caso: `<svg viewBox="0 0 260 180" role="img" aria-label="Carta devuelta: domicilio desconocido">
+    <rect x="18" y="150" width="224" height="6" rx="3" fill="${N}"/>
+    <path d="M150 150 V96 L192 64 L234 96 V150 Z" fill="${N}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="182" y="116" width="20" height="34" fill="${W}" stroke="${INK}" stroke-width="3"/>
+    <path d="M178 82 l28 28 M206 82 l-28 28" stroke="#C23B3B" stroke-width="7" stroke-linecap="round"/>
+    <g transform="rotate(-8 80 100)">
+      <rect x="20" y="62" width="120" height="78" rx="6" fill="${W}" stroke="${INK}" stroke-width="3"/>
+      <path d="M20 66 L80 106 L140 66" fill="none" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+      <rect x="40" y="108" width="80" height="22" rx="4" fill="none" stroke="#C23B3B" stroke-width="3"/>
+      <text x="80" y="123" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="800" font-size="10" fill="#C23B3B">DEVUELTO</text>
+    </g>
+    <path d="M140 50 q22 -26 48 -8" fill="none" stroke="${O}" stroke-width="3" stroke-dasharray="6 6" stroke-linecap="round"/>
+    <path d="M183 34 l7 9 l-11 3" fill="none" stroke="${O}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`,
+  ciudadano: `<svg viewBox="0 0 260 180" role="img" aria-label="Ciudadano con su reclamo">
+    <rect x="18" y="160" width="224" height="6" rx="3" fill="${AS}"/>
+    <circle cx="96" cy="58" r="24" fill="${A}"/>
+    <path d="M52 160 q0 -64 44 -64 q44 0 44 64 Z" fill="${A}"/>
+    <g transform="rotate(6 170 92)">
+      <rect x="138" y="58" width="68" height="88" rx="6" fill="${W}" stroke="${INK}" stroke-width="3"/>
+      <path d="M150 78 h44 M150 94 h44 M150 110 h28" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="188" cy="132" r="11" fill="${A}"/>
+      <path d="M182 132 l4 4 l8 -9" fill="none" stroke="${W}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </svg>`,
+  admin: `<svg viewBox="0 0 260 180" role="img" aria-label="Edificio de la Administración">
+    <rect x="18" y="162" width="224" height="6" rx="3" fill="${BS}"/>
+    <path d="M52 72 L130 26 L208 72 Z" fill="${B}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+    <circle cx="130" cy="54" r="7" fill="${W}"/>
+    <g fill="${W}" stroke="${INK}" stroke-width="3">
+      <rect x="66" y="80" width="18" height="62"/><rect x="100" y="80" width="18" height="62"/>
+      <rect x="142" y="80" width="18" height="62"/><rect x="176" y="80" width="18" height="62"/>
+    </g>
+    <rect x="52" y="142" width="156" height="12" fill="${B}" stroke="${INK}" stroke-width="3"/>
+    <rect x="42" y="154" width="176" height="8" fill="${BS}" stroke="${INK}" stroke-width="3"/>
+  </svg>`,
+  balanza: `<svg viewBox="0 0 260 180" role="img" aria-label="Balanza: equilibrio entre las dos posturas">
+    <rect x="96" y="160" width="68" height="8" rx="4" fill="${INK}"/>
+    <rect x="127" y="44" width="6" height="118" fill="${INK}"/>
+    <circle cx="130" cy="40" r="9" fill="${O}" stroke="${INK}" stroke-width="3"/>
+    <path d="M44 66 L216 66" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>
+    <path d="M44 66 L22 118 M44 66 L66 118 M216 66 L194 118 M216 66 L238 118" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>
+    <path d="M18 118 H70 Q44 148 18 118 Z" fill="${A}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M190 118 H242 Q216 148 190 118 Z" fill="${B}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/>
+  </svg>`,
+  mocion: `<svg viewBox="0 0 260 180" role="img" aria-label="Documento con la moción final">
+    <rect x="18" y="160" width="224" height="6" rx="3" fill="${N}"/>
+    <rect x="78" y="18" width="104" height="136" rx="7" fill="${W}" stroke="${INK}" stroke-width="3"/>
+    <rect x="94" y="34" width="44" height="9" rx="3" fill="${A}"/>
+    <path d="M94 60 h72 M94 77 h72 M94 94 h72 M94 111 h44" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="156" cy="132" r="17" fill="${O}" stroke="${INK}" stroke-width="3"/>
+    <path d="M148 132 l6 6 l11 -13" fill="none" stroke="${W}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`,
+  urna: `<svg viewBox="0 0 260 180" role="img" aria-label="Urna de votación">
+    <rect x="18" y="162" width="224" height="6" rx="3" fill="${N}"/>
+    <g transform="rotate(-6 130 52)">
+      <rect x="104" y="14" width="52" height="66" rx="5" fill="${W}" stroke="${INK}" stroke-width="3"/>
+      <path d="M114 34 l7 7 l13 -15" fill="none" stroke="${A}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M114 56 h32 M114 68 h22" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>
+    </g>
+    <rect x="62" y="84" width="136" height="78" rx="8" fill="${N}" stroke="${INK}" stroke-width="3"/>
+    <rect x="96" y="80" width="68" height="10" rx="4" fill="${INK}"/>
+    <text x="130" y="134" text-anchor="middle" font-family="Archivo, Arial, sans-serif" font-weight="900" font-size="20" letter-spacing="2" fill="${INK}">VOTO</text>
+  </svg>`
+};
+
+// Generador de QR minimo: modo byte, correccion de errores M, versiones 1-10.
+function makeQR(text, forceMask) {
+  const data = Array.from(new TextEncoder().encode(text));
+  const ECC = [10, 16, 26, 18, 24, 16, 18, 22, 22, 26];
+  const BLK = [1, 1, 1, 2, 2, 4, 4, 4, 5, 5];
+  const rawModules = (v) => {
+    let r = (16 * v + 128) * v + 64;
+    if (v >= 2) { const na = Math.floor(v / 7) + 2; r -= (25 * na - 10) * na - 55; if (v >= 7) r -= 36; }
+    return r;
+  };
+  let ver = 1, dataCap = 0;
+  for (; ver <= 10; ver++) {
+    const dc = Math.floor(rawModules(ver) / 8) - ECC[ver - 1] * BLK[ver - 1];
+    if (4 + (ver < 10 ? 8 : 16) + data.length * 8 <= dc * 8) { dataCap = dc; break; }
+  }
+  if (ver > 10) throw new Error("URL demasiado larga para el QR");
+
+  // 1. Bits de datos
+  const bits = [];
+  const put = (val, len) => { for (let i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+  put(4, 4); put(data.length, ver < 10 ? 8 : 16);
+  data.forEach((b) => put(b, 8));
+  put(0, Math.min(4, dataCap * 8 - bits.length));
+  while (bits.length % 8) bits.push(0);
+  const cw = [];
+  for (let i = 0; i < bits.length; i += 8) { let b = 0; for (let j = 0; j < 8; j++) b = (b << 1) | bits[i + j]; cw.push(b); }
+  for (let pad = 0xEC; cw.length < dataCap; pad ^= 0xEC ^ 0x11) cw.push(pad);
+
+  // 2. Reed-Solomon
+  const mul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z & 255; };
+  const divisor = (deg) => {
+    const r = new Array(deg).fill(0); r[deg - 1] = 1; let root = 1;
+    for (let i = 0; i < deg; i++) { for (let j = 0; j < r.length; j++) { r[j] = mul(r[j], root); if (j + 1 < r.length) r[j] ^= r[j + 1]; } root = mul(root, 2); }
+    return r;
+  };
+  const remainder = (d, div) => {
+    const r = new Array(div.length).fill(0);
+    for (const b of d) { const f = b ^ r.shift(); r.push(0); div.forEach((c, i) => { r[i] ^= mul(c, f); }); }
+    return r;
+  };
+  const nb = BLK[ver - 1], eccLen = ECC[ver - 1];
+  const rawCw = Math.floor(rawModules(ver) / 8);
+  const shortBlocks = nb - (rawCw % nb), shortLen = Math.floor(rawCw / nb);
+  const div = divisor(eccLen);
+  const blocks = [];
+  for (let i = 0, k = 0; i < nb; i++) {
+    const len = shortLen - eccLen + (i < shortBlocks ? 0 : 1);
+    const d = cw.slice(k, k + len); k += len;
+    blocks.push({ d, e: remainder(d, div) });
+  }
+  const all = [];
+  for (let i = 0; i < blocks[nb - 1].d.length; i++) blocks.forEach((b) => { if (i < b.d.length) all.push(b.d[i]); });
+  for (let i = 0; i < eccLen; i++) blocks.forEach((b) => all.push(b.e[i]));
+
+  // 3. Matriz
+  const size = ver * 4 + 17;
+  const mod = Array.from({ length: size }, () => new Array(size).fill(false));
+  const fn = Array.from({ length: size }, () => new Array(size).fill(false));
+  const setF = (x, y, v) => { mod[y][x] = v; fn[y][x] = true; };
+  const bit = (n, i) => ((n >>> i) & 1) !== 0;
+
+  for (let i = 0; i < size; i++) { setF(6, i, i % 2 === 0); setF(i, 6, i % 2 === 0); }
+  const finder = (cx, cy) => {
+    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+      const d = Math.max(Math.abs(dx), Math.abs(dy)), x = cx + dx, y = cy + dy;
+      if (x >= 0 && x < size && y >= 0 && y < size) setF(x, y, d !== 2 && d !== 4);
+    }
+  };
+  finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+  const pos = [];
+  if (ver > 1) {
+    const na = Math.floor(ver / 7) + 2;
+    const step = Math.ceil((ver * 4 + 4) / (na * 2 - 2)) * 2;
+    pos.push(6);
+    for (let p = size - 7; pos.length < na; p -= step) pos.splice(1, 0, p);
+  }
+  pos.forEach((cy, i) => pos.forEach((cx, j) => {
+    if ((i === 0 && j === 0) || (i === 0 && j === pos.length - 1) || (i === pos.length - 1 && j === 0)) return;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) setF(cx + dx, cy + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+  }));
+
+  const drawFormat = (mask) => {
+    const d = (0 << 3) | mask; // nivel M = 0
+    let rem = d; for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    const b = ((d << 10) | rem) ^ 0x5412;
+    for (let i = 0; i <= 5; i++) setF(8, i, bit(b, i));
+    setF(8, 7, bit(b, 6)); setF(8, 8, bit(b, 7)); setF(7, 8, bit(b, 8));
+    for (let i = 9; i < 15; i++) setF(14 - i, 8, bit(b, i));
+    for (let i = 0; i < 8; i++) setF(size - 1 - i, 8, bit(b, i));
+    for (let i = 8; i < 15; i++) setF(8, size - 15 + i, bit(b, i));
+    setF(8, size - 8, true);
+  };
+  drawFormat(0);
+  if (ver >= 7) {
+    let rem = ver; for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+    const b = (ver << 12) | rem;
+    for (let i = 0; i < 18; i++) { const v = bit(b, i), a = size - 11 + (i % 3), c = Math.floor(i / 3); setF(a, c, v); setF(c, a, v); }
+  }
+
+  // 4. Colocar codewords
+  let idx = 0;
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+      const x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - vert : vert;
+      if (!fn[y][x] && idx < all.length * 8) { mod[y][x] = bit(all[idx >>> 3], 7 - (idx & 7)); idx++; }
+    }
+  }
+
+  // 5. Mascara
+  const applyMask = (m) => {
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      let inv;
+      switch (m) {
+        case 0: inv = (x + y) % 2 === 0; break;
+        case 1: inv = y % 2 === 0; break;
+        case 2: inv = x % 3 === 0; break;
+        case 3: inv = (x + y) % 3 === 0; break;
+        case 4: inv = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; break;
+        case 5: inv = ((x * y) % 2) + ((x * y) % 3) === 0; break;
+        case 6: inv = (((x * y) % 2) + ((x * y) % 3)) % 2 === 0; break;
+        default: inv = (((x + y) % 2) + ((x * y) % 3)) % 2 === 0;
+      }
+      if (!fn[y][x] && inv) mod[y][x] = !mod[y][x];
+    }
+  };
+  const penalty = () => {
+    let p = 0;
+    for (let t = 0; t < 2; t++) for (let a = 0; a < size; a++) {
+      let run = 1;
+      for (let b = 1; b < size; b++) {
+        const cur = t ? mod[b][a] : mod[a][b], prev = t ? mod[b - 1][a] : mod[a][b - 1];
+        if (cur === prev) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1;
+      }
+    }
+    for (let y = 0; y < size - 1; y++) for (let x = 0; x < size - 1; x++) {
+      const c = mod[y][x]; if (c === mod[y][x + 1] && c === mod[y + 1][x] && c === mod[y + 1][x + 1]) p += 3;
+    }
+    const pat = [true, false, true, true, true, false, true];
+    for (let t = 0; t < 2; t++) for (let a = 0; a < size; a++) for (let b = 0; b + 7 <= size; b++) {
+      let ok = true;
+      for (let k = 0; k < 7 && ok; k++) if ((t ? mod[b + k][a] : mod[a][b + k]) !== pat[k]) ok = false;
+      if (ok) p += 40;
+    }
+    let dark = 0; mod.forEach((r) => r.forEach((v) => { if (v) dark++; }));
+    p += Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10;
+    return p;
+  };
+  let best = 0;
+  if (forceMask === undefined) {
+    let min = Infinity;
+    for (let m = 0; m < 8; m++) {
+      applyMask(m); drawFormat(m);
+      const pen = penalty();
+      if (pen < min) { min = pen; best = m; }
+      applyMask(m); // deshacer
+    }
+  } else best = forceMask;
+  applyMask(best); drawFormat(best);
+  return mod;
+}
+
+
+/* ================================================================
+   Utilidades
+   ================================================================ */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const IS_PHONE = location.hash === "#votar";
+const T0 = Date.now();
+addEventListener("hashchange", () => location.reload());
+
+let toastTimer = null;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 5000);
+}
+
+/* ================================================================
+   Firebase (Realtime Database)
+   /debate-g7/abierta         true | false   (la maneja el pizarrón)
+   /debate-g7/votos/<id>      { q1: "A"|"B", q2: "si"|"no" }   (un <id> por celular)
+   ================================================================ */
+let fb = null, db = null, online = false, lastError = null, haveSnap = false;
+let state = { open: false, votos: {} };
+
+async function connect() {
+  try {
+    const [app, m] = await Promise.all([import(SDK + "firebase-app.js"), import(SDK + "firebase-database.js")]);
+    fb = m;
+    db = m.getDatabase(app.initializeApp({ databaseURL: FIREBASE_URL }));
+    m.onValue(m.ref(db, ".info/connected"), (s) => { online = s.val() === true; paintStatus(); });
+    m.onValue(m.ref(db, ROOT), (s) => {
+      const v = s.val() || {};
+      state = { open: v.abierta === true, votos: v.votos || {} };
+      haveSnap = true; lastError = null; onState();
+    }, (err) => { lastError = err; paintStatus(); toast("Firebase no dejó leer la votación. Revisá las reglas de la base."); });
+  } catch (e) { lastError = e; console.error(e); paintStatus(); }
+}
+
+function netInfo() {
+  if (online) return ["ok", "Conectado"];
+  if (!lastError && Date.now() - T0 < 8000) return ["wait", "Conectando…"];
+  return ["bad", "Sin conexión con la base de la votación"];
+}
+function paintStatus() {
+  const [cls, txt] = netInfo();
+  const el = IS_PHONE ? $("phNet") : $("netChip");
+  el.className = "net " + cls; el.textContent = txt;
+  if (IS_PHONE) renderPhone();
+}
+setInterval(paintStatus, 1000);
+
+function tally() {
+  const t = {}; QUESTIONS.forEach((q) => { t[q.id] = {}; q.opts.forEach((o) => { t[q.id][o.k] = 0; }); });
+  let total = 0;
+  for (const id of Object.keys(state.votos)) {
+    const v = state.votos[id]; if (!v || typeof v !== "object") continue;
+    total++;
+    QUESTIONS.forEach((q) => { const k = v[q.id]; if (Object.prototype.hasOwnProperty.call(t[q.id], k)) t[q.id][k]++; });
+  }
+  return { t, total };
+}
+
+function onState() { IS_PHONE ? renderPhone() : (renderVotes(), paintOpenBtn()); }
+
+/* ================================================================
+   CELULAR
+   ================================================================ */
+let phSig = "";
+const VOTER = (() => {
+  const mk = () => { const a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a, (b) => b.toString(16).padStart(2, "0")).join(""); };
+  try { let id = localStorage.getItem("g7-voter"); if (!id || !/^[0-9a-f]{24}$/.test(id)) { id = mk(); localStorage.setItem("g7-voter", id); } return id; }
+  catch (e) { return mk(); }
+})();
+
+async function vote(q, k) {
+  if (!db) { toast("Todavía no hay conexión. Probá de nuevo en un momento."); return; }
+  if (!state.open) { toast("La votación no está abierta."); return; }
+  try { await fb.update(fb.ref(db, `${ROOT}/votos/${VOTER}`), { [q]: k }); }
+  catch (e) { console.error(e); toast("No se pudo registrar tu voto. Probá de nuevo."); }
+}
+
+function renderPhone() {
+  const my = (state.votos && state.votos[VOTER]) || {};
+  const [ncls, ntxt] = netInfo();
+  const sig = JSON.stringify([haveSnap, state.open, my, ncls]);
+  if (sig === phSig) return; phSig = sig;
+  const body = $("phBody");
+  if (!haveSnap) {
+    body.innerHTML = `<div class="card"><h2>Conectando con la votación…</h2>` +
+      (ncls === "bad" ? `<p class="muted">No se pudo conectar. Revisá tu conexión y recargá la página.</p>` : `<p class="muted">Un momento.</p>`) + `</div>`;
+    return;
+  }
+  if (!state.open) {
+    const voted = QUESTIONS.some((q) => my[q.id]);
+    body.innerHTML = `<div class="card"><h2>${voted ? "Votación cerrada. ¡Gracias por participar!" : "La votación no está abierta en este momento"}</h2>` +
+      `<p class="muted">${voted ? "Tu voto quedó registrado." : "Si todavía no empezó, esta pantalla se actualiza sola cuando el grupo la habilite. No hace falta recargar."}</p></div>`;
+    return;
+  }
+  let html = "";
+  QUESTIONS.forEach((q) => {
+    html += `<div class="card"><h2>${esc(q.text)}</h2>`;
+    q.opts.forEach((o) => {
+      const sel = my[q.id] === o.k;
+      html += `<button class="opt ${o.cls}${sel ? " sel" : ""}" data-q="${q.id}" data-k="${o.k}" aria-pressed="${sel}">${esc(o.label)}</button>`;
+    });
+    html += my[q.id] ? `<p class="ok">✔ Voto registrado</p>` : `<p class="muted">Tocá una opción para votar.</p>`;
+    html += `</div>`;
+  });
+  if (QUESTIONS.every((q) => my[q.id])) html += `<p class="muted" style="text-align:center">¡Listo! Podés cambiar tu voto mientras la votación siga abierta.</p>`;
+  body.innerHTML = html;
+}
+
+/* ================================================================
+   PIZARRÓN
+   ================================================================ */
+let cur = 0, remainingMs = 0, running = false, endAt = 0, tick = null, rendered = false;
+
+function fmt(sec) { const m = Math.floor(sec / 60), s = sec % 60; return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0"); }
+
+function renderStage() {
+  const s = STAGES[cur], box = $("stageBox");
+  box.classList.toggle("notimer", !s.min);
+  box.classList.toggle("reading", !!s.read);
+  box.classList.toggle("voting", !!s.voting);
+  $("pTag").innerHTML = `<span class="chip tag${s.tag[0]}">${esc(s.tag[1])}</span>`;
+  $("pTitle").textContent = s.title;
+  $("pIll").innerHTML = ILL[s.ill] || "";
+  const cards = $("pCards"); cards.innerHTML = "";
+  if (s.read) {
+    const d = document.createElement("div"); d.className = "mocion";
+    MOCION.forEach((t, i) => { const p = document.createElement("p"); p.className = "m" + (i + 1); p.textContent = t; d.appendChild(p); });
+    cards.appendChild(d);
+  } else {
+    s.cards.forEach(([k, label, text]) => {
+      const d = document.createElement("div"); d.className = "arg tag" + k;
+      const b = document.createElement("b"); b.textContent = label; d.appendChild(b); d.appendChild(document.createTextNode(text));
+      cards.appendChild(d);
+    });
+  }
+  $("pVote").hidden = !s.voting;
+  $("voteCtl").hidden = !s.voting;
+  $("steps").innerHTML = STAGES.map((_, i) => `<i class="${i < cur ? "done" : i === cur ? "on" : ""}"></i>`).join("");
+  $("bPrev").disabled = cur === 0;
+  $("bNext").disabled = cur === STAGES.length - 1;
+  resetTimer();
+  if (s.voting) { drawQR(); renderVotes(); paintOpenBtn(); }
+  rendered = true;
+}
+
+function go(n) {
+  n = Math.max(0, Math.min(STAGES.length - 1, n));
+  if (rendered && n === cur) return;
+  const was = !!STAGES[cur].voting;
+  cur = n;
+  try { sessionStorage.setItem("g7-stage", String(cur)); } catch (e) {}
+  renderStage();
+  const now = !!STAGES[cur].voting;
+  if (rendered && now !== was) setOpen(now);   // la votación se abre al llegar a la pantalla final y se cierra al salir
+}
+
+/* cronómetro */
+function stageMs() { return (STAGES[cur].min || 0) * 60000; }
+function stopTick() { running = false; clearInterval(tick); tick = null; }
+function resetTimer() { stopTick(); remainingMs = stageMs(); paintTimer(); paintPlay(); }
+function toggleTimer() {
+  if (!STAGES[cur].min) return;
+  if (running) { remainingMs = endAt - Date.now(); stopTick(); }
+  else { endAt = Date.now() + remainingMs; running = true; tick = setInterval(paintTimer, 200); }
+  paintTimer(); paintPlay();
+}
+function paintTimer() {
+  const min = STAGES[cur].min, t = $("pTimer");
+  if (!min) { $("tTxt").textContent = ""; $("tLbl").textContent = ""; t.className = "timer"; return; }
+  const ms = running ? endAt - Date.now() : remainingMs;
+  let txt, over = ms <= 0;
+  if (!over) txt = fmt(Math.ceil(ms / 1000));
+  else { const o = Math.floor(-ms / 1000); txt = o === 0 ? "00:00" : "+" + fmt(o); }
+  $("tTxt").textContent = txt;
+  $("tLbl").textContent = over ? "Tiempo agotado" : running ? "Tiempo restante" : ms === min * 60000 ? "Listo para iniciar" : "En pausa";
+  t.className = "timer" + (over ? " over" : ms <= 60000 ? " warn" : "");
+}
+function paintPlay() {
+  const has = !!STAGES[cur].min;
+  $("bPlay").disabled = !has; $("bReset").disabled = !has;
+  $("bPlay").textContent = running ? "⏸ Pausar" : (has && remainingMs < stageMs()) ? "▶ Continuar" : "▶ Iniciar cronómetro";
+}
+
+/* votación en el pizarrón */
+function setOpen(v) {
+  if (!db) { toast("Sin conexión con Firebase: no se pudo " + (v ? "abrir" : "cerrar") + " la votación."); return; }
+  fb.set(fb.ref(db, ROOT + "/abierta"), v).catch((e) => { console.error(e); toast("Firebase rechazó el cambio. Revisá las reglas de la base."); });
+}
+function paintOpenBtn() { $("bOpen").textContent = state.open ? "Cerrar votación" : "Abrir votación"; }
+
+function buildResults() {
+  const h = $("qHolder"); h.innerHTML = "";
+  QUESTIONS.forEach((q) => {
+    const blk = document.createElement("div"); blk.className = "qblock";
+    let html = `<h3>${esc(q.text)}</h3>` + (q.lead ? `<div class="lead" id="lead_${q.id}"></div>` : "");
+    q.opts.forEach((o) => {
+      html += `<div class="bar-row"><span class="name">${esc(o.label)}</span><span class="n" id="n_${q.id}_${o.k}">0</span><span class="pct" id="p_${q.id}_${o.k}">0%</span>` +
+        `<div class="bar"><i id="b_${q.id}_${o.k}" style="background:${o.color}"></i></div></div>`;
+    });
+    blk.innerHTML = html; h.appendChild(blk);
+  });
+}
+function renderVotes() {
+  if (!STAGES[cur].voting) return;
+  const { t, total } = tally();
+  const st = $("voteState");
+  st.textContent = state.open ? "Votación abierta" : "Votación cerrada";
+  st.className = "chip " + (state.open ? "tagA" : "tagN");
+  $("voteCount").textContent = total === 1 ? "1 persona votó" : total + " personas votaron";
+  QUESTIONS.forEach((q) => {
+    const sum = q.opts.reduce((a, o) => a + t[q.id][o.k], 0);
+    q.opts.forEach((o) => {
+      const n = t[q.id][o.k], pct = sum ? Math.round((n * 100) / sum) : 0;
+      $(`n_${q.id}_${o.k}`).textContent = n; $(`p_${q.id}_${o.k}`).textContent = pct + "%"; $(`b_${q.id}_${o.k}`).style.width = pct + "%";
+    });
+    if (q.lead) {
+      const sorted = [...q.opts].sort((x, y) => t[q.id][y.k] - t[q.id][x.k]);
+      const top = sorted[0], second = sorted[1];
+      $("lead_" + q.id).textContent = !sum ? "Todavía no votó nadie"
+        : t[q.id][top.k] === t[q.id][second.k] ? "Empate"
+        : (state.open ? "Va ganando " : "Ganó ") + (top.short.split(" · ")[0] === top.short ? top.short : "el Panel " + top.short.split(" · ")[0]);
+    }
+  });
+}
+
+/* QR: lleva a esta misma página con #votar */
+function drawQR() {
+  const u = new URL(location.href); u.hash = "votar"; u.search = "";
+  const url = u.toString();
+  $("qrUrl").textContent = u.host ? u.host + u.pathname.replace(/index\.html$/, "") : url;
+  $("qrWarn").hidden = /^https?:$/.test(u.protocol);
+  const cv = $("qrCanvas");
+  try {
+    const m = makeQR(url), n = m.length, quiet = 4, px = 10, size = (n + quiet * 2) * px;
+    cv.width = size; cv.height = size;
+    const c = cv.getContext("2d"); c.fillStyle = "#fff"; c.fillRect(0, 0, size, size); c.fillStyle = "#1D2420";
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if (m[y][x]) c.fillRect((x + quiet) * px, (y + quiet) * px, px, px);
+  } catch (e) { console.error(e); toast("No se pudo generar el QR (dirección muy larga)."); }
+}
+
+function initBoard() {
+  $("pizarra").hidden = false;
+  buildResults();
+  $("bPrev").onclick = () => go(cur - 1);
+  $("bNext").onclick = () => go(cur + 1);
+  $("bPlay").onclick = toggleTimer;
+  $("bReset").onclick = resetTimer;
+  $("bOpen").onclick = () => setOpen(!state.open);
+  $("bClear").onclick = () => {
+    if (!db) { toast("Sin conexión con Firebase."); return; }
+    if (confirm("¿Borrar TODOS los votos? Usalo para limpiar las pruebas antes de presentar.")) {
+      fb.remove(fb.ref(db, ROOT + "/votos")).catch((e) => { console.error(e); toast("Firebase rechazó el borrado. Revisá las reglas."); });
+    }
+  };
+  $("bFull").onclick = () => { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {}); };
+  document.querySelectorAll("#pizarra button").forEach((b) => b.addEventListener("click", () => b.blur()));
+  addEventListener("keydown", (e) => {
+    if (e.code === "Space") { e.preventDefault(); toggleTimer(); }
+    else if (e.key === "ArrowRight" || e.key === "PageDown") go(cur + 1);
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") go(cur - 1);
+  });
+  addEventListener("keyup", (e) => { if (e.code === "Space") e.preventDefault(); });
+  let start = 0; try { start = parseInt(sessionStorage.getItem("g7-stage") || "0", 10) || 0; } catch (e) {}
+  cur = Math.max(0, Math.min(STAGES.length - 1, start));
+  renderStage();
+}
+
+function initPhone() {
+  $("celular").hidden = false;
+  $("phBody").addEventListener("click", (e) => { const b = e.target.closest("button[data-q]"); if (b) vote(b.dataset.q, b.dataset.k); });
+  renderPhone();
+}
+
+IS_PHONE ? initPhone() : initBoard();
+connect();
+</script>
+</body>
+</html>
